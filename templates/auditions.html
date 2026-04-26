@@ -1,0 +1,118 @@
+{% extends "base.html" %}
+{% block title %}Browse Auditions — BandBoard{% endblock %}
+{% block extra_css %}
+<style>
+.filter-bar {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 1.25rem 1.5rem;
+  margin-bottom: 2rem;
+  display: flex;
+  gap: 1rem;
+  flex-wrap: wrap;
+  align-items: flex-end;
+}
+.filter-group { display: flex; flex-direction: column; gap: 0.3rem; flex: 1; min-width: 150px; }
+.filter-group label { font-size: 0.75rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text3); }
+.filter-group input, .filter-group select {
+  padding: 0.5rem 0.75rem;
+  font-size: 0.88rem;
+}
+.audition-row {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 1.4rem 1.6rem;
+  display: flex;
+  gap: 1.5rem;
+  align-items: flex-start;
+  transition: all 0.2s;
+  margin-bottom: 0.75rem;
+}
+.audition-row:hover {
+  border-color: rgba(232,255,71,0.25);
+  transform: translateX(3px);
+}
+.aud-main { flex: 1; }
+.aud-title { font-size: 1.05rem; font-weight: 600; color: var(--text); text-decoration: none; }
+.aud-title:hover { color: var(--accent); }
+.aud-meta { display: flex; gap: 0.75rem; align-items: center; flex-wrap: wrap; margin-top: 0.5rem; }
+.aud-band { font-size: 0.85rem; color: var(--text3); }
+.aud-piece { font-size: 0.88rem; color: var(--text2); margin-top: 0.35rem; }
+.aud-piece strong { color: var(--text); }
+.aud-desc { font-size: 0.85rem; color: var(--text2); margin-top: 0.5rem; line-height: 1.5;
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.aud-right { display: flex; flex-direction: column; align-items: flex-end; gap: 0.75rem; min-width: 120px; }
+.aud-date { font-size: 0.75rem; color: var(--text3); font-family: 'DM Mono', monospace; }
+.aud-deadline { font-size: 0.75rem; color: var(--warning); font-family: 'DM Mono', monospace; }
+.empty-state { text-align: center; padding: 4rem 2rem; color: var(--text2); }
+.empty-state p { margin-top: 0.5rem; font-size: 0.9rem; }
+</style>
+{% endblock %}
+{% block content %}
+<div class="page-header">
+  <h1>Open Auditions</h1>
+  <p>Find your next band. Filter by instrument or genre.</p>
+</div>
+
+<form method="GET" class="filter-bar">
+  <div class="filter-group">
+    <label>Search</label>
+    <input type="text" name="q" placeholder="title or piece name..." value="{{ q }}">
+  </div>
+  <div class="filter-group">
+    <label>Instrument</label>
+    <select name="instrument">
+      <option value="">All instruments</option>
+      {% for row in instruments %}
+        <option value="{{ row.instrument }}" {% if selected_inst == row.instrument %}selected{% endif %}>{{ row.instrument }}</option>
+      {% endfor %}
+    </select>
+  </div>
+  <div class="filter-group">
+    <label>Genre</label>
+    <select name="genre">
+      <option value="">All genres</option>
+      {% for row in genres %}
+        <option value="{{ row.genre }}" {% if selected_genre == row.genre %}selected{% endif %}>{{ row.genre }}</option>
+      {% endfor %}
+    </select>
+  </div>
+  <button type="submit" class="btn btn-primary btn-sm" style="height:fit-content; padding:0.55rem 1.2rem;">Filter</button>
+  <a href="{{ url_for('auditions') }}" class="btn btn-ghost btn-sm" style="height:fit-content; padding:0.55rem 1rem;">Clear</a>
+</form>
+
+{% if auditions %}
+  {% for a in auditions %}
+  <div class="audition-row">
+    <div class="aud-main">
+      <a href="{{ url_for('audition_detail', aid=a.id) }}" class="aud-title">{{ a.title }}</a>
+      <div class="aud-meta">
+        <span class="aud-band">by {{ a.band_name }}</span>
+        <span class="instrument-tag">🎵 {{ a.instrument }}</span>
+        {% if a.genre %}<span class="instrument-tag">{{ a.genre }}</span>{% endif %}
+        <span class="badge badge-open">open</span>
+      </div>
+      <div class="aud-piece">Piece to perform: <strong>{{ a.piece_name }}</strong></div>
+      {% if a.description %}
+        <div class="aud-desc">{{ a.description }}</div>
+      {% endif %}
+    </div>
+    <div class="aud-right">
+      <a href="{{ url_for('audition_detail', aid=a.id) }}" class="btn btn-ghost btn-sm">View →</a>
+      <span class="aud-date">{{ a.created_at[:10] }}</span>
+      {% if a.deadline %}<span class="aud-deadline">Due: {{ a.deadline }}</span>{% endif %}
+    </div>
+  </div>
+  {% endfor %}
+{% else %}
+  <div class="empty-state">
+    <div style="font-size:3rem;">🎸</div>
+    <p>No open auditions match your filters.</p>
+    {% if session.get('role') == 'band' %}
+      <a href="{{ url_for('post_audition') }}" class="btn btn-primary" style="margin-top:1rem;">Post One Now</a>
+    {% endif %}
+  </div>
+{% endif %}
+{% endblock %}

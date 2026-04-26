@@ -1,0 +1,231 @@
+{% extends "base.html" %}
+{% block title %}BandBoard — Find Your Next Bandmate{% endblock %}
+{% block extra_css %}
+<style>
+.hero {
+  text-align: center;
+  padding: 5rem 1rem 4rem;
+  position: relative;
+}
+.hero::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(ellipse at 50% 0%, rgba(232,255,71,0.06) 0%, transparent 65%);
+  pointer-events: none;
+}
+.hero-eyebrow {
+  font-family: 'DM Mono', monospace;
+  font-size: 0.78rem;
+  letter-spacing: 0.15em;
+  color: var(--accent);
+  text-transform: uppercase;
+  margin-bottom: 1rem;
+}
+.hero h1 {
+  font-family: 'Bebas Neue', cursive;
+  font-size: clamp(3.5rem, 8vw, 7rem);
+  line-height: 0.95;
+  letter-spacing: 3px;
+  margin-bottom: 1.5rem;
+}
+.hero h1 span { color: var(--accent); }
+.hero p {
+  max-width: 520px;
+  margin: 0 auto 2.5rem;
+  color: var(--text2);
+  font-size: 1.1rem;
+}
+.hero-btns { display: flex; gap: 1rem; justify-content: center; flex-wrap: wrap; }
+.hero-btn {
+  padding: 0.85rem 2.2rem;
+  font-size: 1rem;
+  border-radius: var(--radius);
+  font-weight: 700;
+  cursor: pointer;
+  border: none;
+  font-family: 'DM Sans', sans-serif;
+  text-decoration: none;
+  transition: all 0.18s;
+}
+.hero-btn-primary { background: var(--accent); color: #000; }
+.hero-btn-primary:hover { background: #d4eb30; color: #000; text-decoration: none; }
+.hero-btn-ghost { background: transparent; border: 1px solid var(--border); color: var(--text2); }
+.hero-btn-ghost:hover { border-color: var(--accent); color: var(--accent); text-decoration: none; }
+
+.stats-bar {
+  display: flex;
+  justify-content: center;
+  gap: 4rem;
+  padding: 2rem;
+  border-top: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 3rem;
+}
+.stat-item { text-align: center; }
+.stat-num {
+  font-family: 'Bebas Neue', cursive;
+  font-size: 2.5rem;
+  color: var(--accent);
+  letter-spacing: 1px;
+}
+.stat-label { font-size: 0.78rem; color: var(--text3); text-transform: uppercase; letter-spacing: 0.08em; }
+
+.section-title {
+  font-family: 'Bebas Neue', cursive;
+  font-size: 1.8rem;
+  letter-spacing: 2px;
+  margin-bottom: 1.5rem;
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+.section-title::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: var(--border);
+}
+
+.audition-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 1.4rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+  transition: all 0.2s;
+  cursor: pointer;
+}
+.audition-card:hover {
+  border-color: rgba(232,255,71,0.3);
+  transform: translateY(-2px);
+  box-shadow: 0 8px 24px rgba(0,0,0,0.3);
+}
+.card-top { display: flex; justify-content: space-between; align-items: flex-start; gap: 0.5rem; }
+.card-title {
+  font-family: 'DM Sans', sans-serif;
+  font-size: 1.05rem;
+  font-weight: 600;
+  color: var(--text);
+  text-decoration: none;
+}
+.card-title:hover { color: var(--accent); text-decoration: none; }
+.card-band { font-size: 0.82rem; color: var(--text3); }
+.card-piece { font-size: 0.88rem; color: var(--text2); }
+.card-piece strong { color: var(--accent); font-weight: 500; }
+.card-footer { display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap; margin-top: 0.25rem; }
+.card-date { font-size: 0.75rem; color: var(--text3); margin-left: auto; font-family: 'DM Mono', monospace; }
+
+.how-it-works { margin-top: 4rem; }
+.steps { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 1.5rem; margin-top: 1.5rem; }
+.step {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 1.5rem;
+}
+.step-num {
+  font-family: 'Bebas Neue', cursive;
+  font-size: 3.5rem;
+  color: var(--border);
+  line-height: 1;
+  margin-bottom: 0.75rem;
+}
+.step h3 { font-size: 0.95rem; font-weight: 600; margin-bottom: 0.4rem; }
+.step p { font-size: 0.85rem; color: var(--text2); line-height: 1.5; }
+.role-tag {
+  display: inline-block;
+  font-size: 0.7rem;
+  font-family: 'DM Mono', monospace;
+  padding: 0.1rem 0.45rem;
+  border-radius: 3px;
+  margin-bottom: 0.5rem;
+}
+.role-band { background: rgba(255,71,87,0.15); color: var(--accent2); }
+.role-musician { background: rgba(232,255,71,0.1); color: var(--accent); }
+</style>
+{% endblock %}
+{% block content %}
+<section class="hero">
+  <p class="hero-eyebrow">🎸 The Audition Board for Serious Musicians</p>
+  <h1>Find Your<br><span>Sound.</span><br>Fill Your Stage.</h1>
+  <p>Bands post audition requests. Musicians apply with their performance. Connect, audition, create.</p>
+  <div class="hero-btns">
+    <a href="{{ url_for('register') }}" class="hero-btn hero-btn-primary">Get Started Free</a>
+    <a href="{{ url_for('auditions') }}" class="hero-btn hero-btn-ghost">Browse Auditions</a>
+  </div>
+</section>
+
+<div class="stats-bar">
+  <div class="stat-item">
+    <div class="stat-num">{{ auditions|length }}+</div>
+    <div class="stat-label">Open Auditions</div>
+  </div>
+  <div class="stat-item">
+    <div class="stat-num">∞</div>
+    <div class="stat-label">Instruments</div>
+  </div>
+  <div class="stat-item">
+    <div class="stat-num">FREE</div>
+    <div class="stat-label">Always</div>
+  </div>
+</div>
+
+{% if auditions %}
+<h2 class="section-title">Latest Auditions</h2>
+<div class="grid grid-3">
+  {% for a in auditions %}
+  <a href="{{ url_for('audition_detail', aid=a.id) }}" style="text-decoration:none;">
+    <div class="audition-card">
+      <div class="card-top">
+        <span class="card-title">{{ a.title }}</span>
+        <span class="badge badge-open">open</span>
+      </div>
+      <div class="card-band">by {{ a.band_name }}</div>
+      <div class="card-piece">Perform: <strong>{{ a.piece_name }}</strong></div>
+      <div class="card-footer">
+        <span class="instrument-tag">🎵 {{ a.instrument }}</span>
+        {% if a.genre %}<span class="instrument-tag">{{ a.genre }}</span>{% endif %}
+        <span class="card-date">{{ a.created_at[:10] }}</span>
+      </div>
+    </div>
+  </a>
+  {% endfor %}
+</div>
+<div style="text-align:center; margin-top:2rem;">
+  <a href="{{ url_for('auditions') }}" class="btn btn-ghost">View All Auditions →</a>
+</div>
+{% endif %}
+
+<div class="how-it-works">
+  <h2 class="section-title">How It Works</h2>
+  <div class="steps">
+    <div class="step">
+      <div class="step-num">01</div>
+      <span class="role-tag role-band">For Bands</span>
+      <h3>Post Your Audition</h3>
+      <p>Describe the role, the instrument, and the piece you want performers to play. Set your deadline.</p>
+    </div>
+    <div class="step">
+      <div class="step-num">02</div>
+      <span class="role-tag role-musician">For Musicians</span>
+      <h3>Find & Apply</h3>
+      <p>Browse open auditions filtered by instrument or genre. Apply with a message and video link.</p>
+    </div>
+    <div class="step">
+      <div class="step-num">03</div>
+      <span class="role-tag role-band">For Bands</span>
+      <h3>Review & Accept</h3>
+      <p>Review all applicants on your dashboard. Accept the one who nails it, reject the rest.</p>
+    </div>
+    <div class="step">
+      <div class="step-num">04</div>
+      <span class="role-tag role-musician">For Musicians</span>
+      <h3>Get the Gig</h3>
+      <p>Track your applications. Get accepted and start jamming with your new band.</p>
+    </div>
+  </div>
+</div>
+{% endblock %}

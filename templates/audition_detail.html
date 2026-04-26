@@ -1,0 +1,202 @@
+{% extends "base.html" %}
+{% block title %}{{ aud.title }} — BandBoard{% endblock %}
+{% block extra_css %}
+<style>
+.detail-layout { display: grid; grid-template-columns: 1fr 340px; gap: 2rem; align-items: start; }
+@media(max-width:768px) { .detail-layout { grid-template-columns: 1fr; } }
+
+.detail-main {}
+.detail-header { margin-bottom: 1.5rem; }
+.detail-title { font-family: 'Bebas Neue', cursive; font-size: 2.5rem; letter-spacing: 2px; line-height: 1.1; }
+.detail-band { font-size: 0.9rem; color: var(--text3); margin-top: 0.3rem; }
+.detail-meta { display: flex; gap: 0.6rem; flex-wrap: wrap; margin-top: 0.9rem; }
+
+.info-section { margin-bottom: 1.5rem; }
+.info-label {
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  font-weight: 700;
+  color: var(--text3);
+  margin-bottom: 0.4rem;
+  font-family: 'DM Mono', monospace;
+}
+.info-value { color: var(--text); line-height: 1.6; }
+
+.piece-box {
+  background: var(--bg3);
+  border: 1px solid rgba(232,255,71,0.15);
+  border-left: 3px solid var(--accent);
+  border-radius: var(--radius);
+  padding: 1.2rem 1.4rem;
+  margin-bottom: 1.5rem;
+}
+.piece-name { font-size: 1.1rem; font-weight: 600; margin-bottom: 0.4rem; }
+.piece-details { font-size: 0.88rem; color: var(--text2); line-height: 1.6; }
+
+/* Apply form */
+.apply-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 1.5rem;
+  position: sticky;
+  top: 80px;
+}
+.apply-title { font-family: 'Bebas Neue', cursive; font-size: 1.5rem; letter-spacing: 1px; margin-bottom: 1rem; }
+.applied-badge {
+  background: rgba(46,204,113,0.1);
+  border: 1px solid rgba(46,204,113,0.25);
+  color: var(--success);
+  border-radius: var(--radius);
+  padding: 0.75rem 1rem;
+  font-size: 0.88rem;
+  text-align: center;
+}
+
+/* Applications list (band view) */
+.apps-section { margin-top: 2.5rem; }
+.app-item {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 1.2rem 1.4rem;
+  margin-bottom: 0.75rem;
+}
+.app-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.6rem; }
+.app-musician { font-weight: 600; font-size: 0.95rem; }
+.app-message { font-size: 0.88rem; color: var(--text2); line-height: 1.5; margin-bottom: 0.75rem; }
+.app-video { font-size: 0.85rem; }
+.app-actions { display: flex; gap: 0.5rem; flex-wrap: wrap; align-items: center; }
+.status-form { display: inline-flex; gap: 0.5rem; }
+</style>
+{% endblock %}
+{% block content %}
+<a href="{{ url_for('auditions') }}" class="btn btn-ghost btn-sm" style="margin-bottom:1.5rem;">← Back to Auditions</a>
+
+<div class="detail-layout">
+  <div class="detail-main">
+    <div class="detail-header">
+      <div class="detail-meta">
+        <span class="badge badge-{{ aud.status }}">{{ aud.status }}</span>
+        <span class="instrument-tag">🎵 {{ aud.instrument }}</span>
+        {% if aud.genre %}<span class="instrument-tag">{{ aud.genre }}</span>{% endif %}
+      </div>
+      <h1 class="detail-title">{{ aud.title }}</h1>
+      <div class="detail-band">Posted by <strong>{{ aud.band_name }}</strong> · {{ aud.created_at[:10] }}</div>
+    </div>
+
+    <div class="info-section">
+      <div class="info-label">About This Audition</div>
+      <div class="info-value">{{ aud.description }}</div>
+    </div>
+
+    <div class="info-label" style="margin-bottom:0.6rem;">Piece to Perform</div>
+    <div class="piece-box">
+      <div class="piece-name">🎼 {{ aud.piece_name }}</div>
+      <div class="piece-details">{{ aud.piece_details }}</div>
+    </div>
+
+    {% if aud.deadline %}
+    <div class="info-section">
+      <div class="info-label">Application Deadline</div>
+      <div class="info-value" style="color:var(--warning); font-family:'DM Mono',monospace;">{{ aud.deadline }}</div>
+    </div>
+    {% endif %}
+
+    {% if aud.band_bio %}
+    <div class="info-section">
+      <div class="info-label">About the Band</div>
+      <div class="info-value" style="color:var(--text2);">{{ aud.band_bio }}</div>
+    </div>
+    {% endif %}
+
+    <!-- Band sees applications -->
+    {% if apps is defined and apps %}
+    <div class="apps-section">
+      <h2 style="font-family:'Bebas Neue',cursive;font-size:1.6rem;letter-spacing:1px;margin-bottom:1rem;">
+        Applications ({{ apps|length }})
+      </h2>
+      {% for ap in apps %}
+      <div class="app-item">
+        <div class="app-header">
+          <span class="app-musician">🎤 {{ ap.musician_name }}</span>
+          <span class="badge badge-{{ ap.status }}">{{ ap.status }}</span>
+        </div>
+        <div class="app-message">{{ ap.message }}</div>
+        {% if ap.video_link %}
+          <div class="app-video">📹 <a href="{{ ap.video_link }}" target="_blank">Watch Performance</a></div>
+        {% endif %}
+        <div class="app-actions" style="margin-top:0.75rem;">
+          <span style="font-size:0.75rem;color:var(--text3);font-family:'DM Mono',monospace;">{{ ap.created_at[:10] }}</span>
+          <div style="margin-left:auto;">
+            <form method="POST" action="{{ url_for('update_application', app_id=ap.id) }}" class="status-form">
+              <select name="status" style="padding:0.3rem 0.5rem;font-size:0.8rem;width:auto;">
+                <option value="pending" {% if ap.status=='pending' %}selected{% endif %}>Pending</option>
+                <option value="accepted" {% if ap.status=='accepted' %}selected{% endif %}>Accept</option>
+                <option value="rejected" {% if ap.status=='rejected' %}selected{% endif %}>Reject</option>
+              </select>
+              <button type="submit" class="btn btn-ghost btn-sm">Update</button>
+            </form>
+          </div>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+    {% elif session.get('role') == 'band' and session.get('user_id') == aud.band_id %}
+    <div class="apps-section">
+      <h2 style="font-family:'Bebas Neue',cursive;font-size:1.6rem;letter-spacing:1px;margin-bottom:1rem;">Applications (0)</h2>
+      <div style="color:var(--text3);font-size:0.9rem;">No applications yet. Share this audition to attract musicians!</div>
+    </div>
+    {% endif %}
+
+    <!-- Band close button -->
+    {% if session.get('role') == 'band' and session.get('user_id') == aud.band_id and aud.status == 'open' %}
+    <form method="POST" action="{{ url_for('close_audition', aid=aud.id) }}" style="margin-top:2rem;">
+      <button type="submit" class="btn btn-danger btn-sm"
+              onclick="return confirm('Close this audition? No more applications will be accepted.')">
+        Close Audition
+      </button>
+    </form>
+    {% endif %}
+  </div>
+
+  <!-- SIDEBAR -->
+  <div>
+    <div class="apply-card">
+      {% if not session.get('user_id') %}
+        <div class="apply-title">Apply Now</div>
+        <p style="font-size:0.88rem;color:var(--text2);margin-bottom:1rem;">You need an account to apply for this audition.</p>
+        <a href="{{ url_for('login') }}" class="btn btn-primary" style="width:100%;justify-content:center;">Log In to Apply</a>
+        <a href="{{ url_for('register') }}" class="btn btn-ghost" style="width:100%;justify-content:center;margin-top:0.5rem;">Create Account</a>
+
+      {% elif session.get('role') == 'band' %}
+        <div style="font-size:0.88rem;color:var(--text2);">You're logged in as a <strong>band</strong>. Switch to a musician account to apply.</div>
+
+      {% elif aud.status == 'closed' %}
+        <div class="applied-badge">⛔ This audition is closed.</div>
+
+      {% elif user_applied %}
+        <div class="applied-badge">✅ You've already applied!<br><a href="{{ url_for('dashboard') }}" style="color:var(--success);">View in Dashboard →</a></div>
+
+      {% else %}
+        <div class="apply-title">Apply for this Role</div>
+        <form method="POST" action="{{ url_for('apply', aid=aud.id) }}">
+          <div class="form-group">
+            <label>Your Message</label>
+            <textarea name="message" required placeholder="Tell the band about yourself, your experience, and why you're the right fit..." rows="4"></textarea>
+          </div>
+          <div class="form-group">
+            <label>Video Performance Link (optional)</label>
+            <input type="url" name="video_link" placeholder="https://youtube.com/...">
+            <div style="font-size:0.75rem;color:var(--text3);margin-top:0.3rem;">Record yourself playing the piece and paste the link</div>
+          </div>
+          <button type="submit" class="btn btn-primary" style="width:100%;justify-content:center;padding:0.8rem;">
+            Submit Application 🎸
+          </button>
+        </form>
+      {% endif %}
+    </div>
+  </div>
+</div>
+{% endblock %}

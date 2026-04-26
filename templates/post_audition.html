@@ -1,0 +1,67 @@
+{% extends "base.html" %}
+{% block title %}Post Audition — BandBoard{% endblock %}
+{% block extra_css %}
+<style>
+.post-wrap { max-width: 700px; margin: 0 auto; }
+.post-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 2.5rem; }
+.section-divider { font-family: 'Bebas Neue', cursive; font-size: 1.1rem; letter-spacing: 2px; color: var(--text3); margin: 2rem 0 1.2rem; padding-bottom: 0.5rem; border-bottom: 1px solid var(--border); }
+.form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
+@media(max-width:500px){ .form-row { grid-template-columns: 1fr; } }
+.char-count { font-size:0.72rem; color:var(--text3); text-align:right; margin-top:0.2rem; }
+</style>
+{% endblock %}
+{% block content %}
+<div class="post-wrap">
+  <div class="page-header">
+    <h1>Post an Audition</h1>
+    <p>Find the perfect musician for your band</p>
+  </div>
+  <div class="post-card">
+    <form method="POST">
+      <div class="section-divider">Basic Info</div>
+      <div class="form-group">
+        <label>Audition Title *</label>
+        <input type="text" name="title" required placeholder="e.g. Lead Guitarist Needed for Rock Band" maxlength="120">
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>Instrument / Role *</label>
+          <input type="text" name="instrument" required placeholder="e.g. Guitar, Drums, Vocals...">
+        </div>
+        <div class="form-group">
+          <label>Genre</label>
+          <input type="text" name="genre" placeholder="e.g. Rock, Jazz, Metal, Pop...">
+        </div>
+      </div>
+      <div class="form-group">
+        <label>Description *</label>
+        <textarea name="description" required rows="4" placeholder="Tell musicians about your band, what you're looking for, experience level required, rehearsal schedule, etc."></textarea>
+      </div>
+
+      <div class="section-divider">The Piece</div>
+      <p style="font-size:0.85rem;color:var(--text2);margin-bottom:1.2rem;">
+        Specify exactly what musicians should perform for their audition. Be specific — link to sheet music, YouTube demos, or describe the passage.
+      </p>
+      <div class="form-group">
+        <label>Piece Name *</label>
+        <input type="text" name="piece_name" required placeholder="e.g. Comfortably Numb - Solo, or Original Riff in E minor">
+      </div>
+      <div class="form-group">
+        <label>Performance Instructions *</label>
+        <textarea name="piece_details" required rows="4" placeholder="Describe what you want them to play: the specific section, timing, key, tempo. Link to sheet music or a reference recording if available."></textarea>
+      </div>
+
+      <div class="section-divider">Timeline</div>
+      <div class="form-group" style="max-width:240px;">
+        <label>Application Deadline (optional)</label>
+        <input type="date" name="deadline">
+      </div>
+
+      <div style="display:flex;gap:1rem;margin-top:1.5rem;flex-wrap:wrap;">
+        <button type="submit" class="btn btn-primary" style="padding:0.8rem 2rem;">Post Audition 🎸</button>
+        <a href="{{ url_for('dashboard') }}" class="btn btn-ghost">Cancel</a>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}

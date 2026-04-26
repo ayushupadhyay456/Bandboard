@@ -1,0 +1,74 @@
+{% extends "base.html" %}
+{% block title %}Band Dashboard — BandBoard{% endblock %}
+{% block extra_css %}
+<style>
+.dash-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 2rem; flex-wrap: wrap; gap: 1rem; }
+.aud-item {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 1.4rem 1.6rem;
+  margin-bottom: 0.75rem;
+  display: flex;
+  gap: 1.5rem;
+  align-items: center;
+  transition: all 0.2s;
+}
+.aud-item:hover { border-color: var(--text3); }
+.aud-item-main { flex: 1; }
+.aud-item-title { font-weight: 600; font-size: 1rem; color: var(--text); }
+.aud-item-meta { display: flex; gap: 0.5rem; flex-wrap: wrap; margin-top: 0.5rem; align-items: center; }
+.app-count {
+  background: var(--bg3);
+  border: 1px solid var(--border);
+  padding: 0.2rem 0.7rem;
+  border-radius: 20px;
+  font-size: 0.78rem;
+  color: var(--text2);
+  font-family: 'DM Mono', monospace;
+}
+.app-count.has-apps { background: rgba(232,255,71,0.08); border-color: rgba(232,255,71,0.2); color: var(--accent); }
+.aud-item-right { display: flex; flex-direction: column; align-items: flex-end; gap: 0.5rem; }
+.empty-state { text-align:center; padding:4rem 2rem; color:var(--text2); }
+</style>
+{% endblock %}
+{% block content %}
+<div class="dash-header">
+  <div>
+    <h1 style="font-family:'Bebas Neue',cursive;font-size:2.8rem;letter-spacing:2px;">Band Dashboard</h1>
+    <p style="color:var(--text2);">Manage your auditions and review applications</p>
+  </div>
+  <a href="{{ url_for('post_audition') }}" class="btn btn-primary">+ Post New Audition</a>
+</div>
+
+{% if auditions %}
+  {% for a in auditions %}
+  <div class="aud-item">
+    <div class="aud-item-main">
+      <div class="aud-item-title">{{ a.title }}</div>
+      <div class="aud-item-meta">
+        <span class="badge badge-{{ a.status }}">{{ a.status }}</span>
+        <span class="instrument-tag">🎵 {{ a.instrument }}</span>
+        {% if a.genre %}<span class="instrument-tag">{{ a.genre }}</span>{% endif %}
+        <span class="app-count {% if a.app_count > 0 %}has-apps{% endif %}">
+          {{ a.app_count }} application{{ 's' if a.app_count != 1 else '' }}
+        </span>
+        <span style="font-size:0.75rem;color:var(--text3);font-family:'DM Mono',monospace;">{{ a.created_at[:10] }}</span>
+      </div>
+    </div>
+    <div class="aud-item-right">
+      <a href="{{ url_for('audition_detail', aid=a.id) }}" class="btn btn-ghost btn-sm">
+        {% if a.app_count > 0 %}Review Applications →{% else %}View →{% endif %}
+      </a>
+    </div>
+  </div>
+  {% endfor %}
+{% else %}
+  <div class="empty-state">
+    <div style="font-size:3rem;">🎸</div>
+    <p style="font-size:1rem;font-weight:600;margin-top:0.75rem;">No auditions posted yet</p>
+    <p style="font-size:0.88rem;margin-top:0.3rem;">Post your first audition to start finding musicians</p>
+    <a href="{{ url_for('post_audition') }}" class="btn btn-primary" style="margin-top:1.5rem;">Post Your First Audition</a>
+  </div>
+{% endif %}
+{% endblock %}

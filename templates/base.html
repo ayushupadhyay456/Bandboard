@@ -1,0 +1,222 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>{% block title %}BandBoard{% endblock %}</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Sans:wght@300;400;500;600&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg: #0a0a0b;
+  --bg2: #111113;
+  --bg3: #1a1a1e;
+  --surface: #1e1e23;
+  --surface2: #26262d;
+  --border: #2e2e38;
+  --accent: #e8ff47;
+  --accent2: #ff4757;
+  --text: #f0f0f0;
+  --text2: #9898a8;
+  --text3: #5a5a6a;
+  --success: #2ecc71;
+  --warning: #f39c12;
+  --radius: 6px;
+}
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html { font-size: 16px; }
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: 'DM Sans', sans-serif;
+  min-height: 100vh;
+  line-height: 1.6;
+}
+a { color: var(--accent); text-decoration: none; }
+a:hover { text-decoration: underline; }
+
+/* NAV */
+nav {
+  background: var(--bg2);
+  border-bottom: 1px solid var(--border);
+  padding: 0 2rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 64px;
+  position: sticky;
+  top: 0;
+  z-index: 100;
+}
+.nav-logo {
+  font-family: 'Bebas Neue', cursive;
+  font-size: 2rem;
+  color: var(--accent);
+  letter-spacing: 2px;
+}
+.nav-logo span { color: var(--accent2); }
+.nav-links { display: flex; gap: 0.25rem; align-items: center; }
+.nav-links a {
+  color: var(--text2);
+  padding: 0.4rem 0.85rem;
+  border-radius: var(--radius);
+  font-size: 0.9rem;
+  font-weight: 500;
+  transition: all 0.2s;
+}
+.nav-links a:hover { color: var(--text); background: var(--surface); text-decoration: none; }
+.nav-links .btn-nav {
+  background: var(--accent);
+  color: #000;
+  font-weight: 600;
+}
+.nav-links .btn-nav:hover { background: #d4eb30; }
+.nav-user { font-size: 0.82rem; color: var(--text3); margin-right: 0.5rem; }
+
+/* MAIN */
+main { max-width: 1200px; margin: 0 auto; padding: 2.5rem 1.5rem; }
+
+/* FLASH */
+.flashes { list-style: none; margin-bottom: 1.5rem; }
+.flash {
+  padding: 0.75rem 1.2rem;
+  border-radius: var(--radius);
+  font-size: 0.9rem;
+  margin-bottom: 0.5rem;
+}
+.flash.success { background: rgba(46,204,113,0.12); border: 1px solid rgba(46,204,113,0.3); color: #2ecc71; }
+.flash.error { background: rgba(255,71,87,0.12); border: 1px solid rgba(255,71,87,0.3); color: #ff4757; }
+
+/* CARDS */
+.card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 1.5rem;
+  transition: border-color 0.2s;
+}
+.card:hover { border-color: var(--text3); }
+
+/* BUTTONS */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.6rem 1.3rem;
+  border-radius: var(--radius);
+  font-family: 'DM Sans', sans-serif;
+  font-size: 0.9rem;
+  font-weight: 600;
+  cursor: pointer;
+  border: none;
+  transition: all 0.18s;
+  text-decoration: none;
+}
+.btn-primary { background: var(--accent); color: #000; }
+.btn-primary:hover { background: #d4eb30; text-decoration: none; color: #000; }
+.btn-danger { background: var(--accent2); color: #fff; }
+.btn-danger:hover { background: #e8394a; text-decoration: none; }
+.btn-ghost { background: transparent; border: 1px solid var(--border); color: var(--text2); }
+.btn-ghost:hover { border-color: var(--text3); color: var(--text); background: var(--surface2); text-decoration: none; }
+.btn-sm { padding: 0.35rem 0.8rem; font-size: 0.8rem; }
+
+/* FORMS */
+.form-group { margin-bottom: 1.25rem; }
+label { display: block; font-size: 0.82rem; font-weight: 600; color: var(--text2); text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 0.4rem; }
+input[type=text], input[type=password], input[type=email], input[type=url], input[type=date],
+select, textarea {
+  width: 100%;
+  background: var(--bg3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 0.65rem 0.9rem;
+  color: var(--text);
+  font-family: 'DM Sans', sans-serif;
+  font-size: 0.95rem;
+  outline: none;
+  transition: border-color 0.2s;
+}
+input:focus, select:focus, textarea:focus { border-color: var(--accent); }
+textarea { resize: vertical; min-height: 100px; }
+select option { background: var(--bg3); }
+
+/* BADGES */
+.badge {
+  display: inline-block;
+  padding: 0.2rem 0.6rem;
+  border-radius: 20px;
+  font-size: 0.72rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+.badge-open { background: rgba(232,255,71,0.12); color: var(--accent); border: 1px solid rgba(232,255,71,0.25); }
+.badge-closed { background: rgba(255,71,87,0.12); color: var(--accent2); border: 1px solid rgba(255,71,87,0.2); }
+.badge-pending { background: rgba(243,156,18,0.12); color: #f39c12; border: 1px solid rgba(243,156,18,0.2); }
+.badge-accepted { background: rgba(46,204,113,0.12); color: var(--success); border: 1px solid rgba(46,204,113,0.2); }
+.badge-rejected { background: rgba(255,71,87,0.12); color: var(--accent2); border: 1px solid rgba(255,71,87,0.2); }
+
+/* GRID */
+.grid { display: grid; gap: 1.25rem; }
+.grid-2 { grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); }
+.grid-3 { grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); }
+
+/* PAGE HEADER */
+.page-header { margin-bottom: 2rem; }
+.page-header h1 { font-family: 'Bebas Neue', cursive; font-size: 3rem; letter-spacing: 2px; line-height: 1; }
+.page-header p { color: var(--text2); margin-top: 0.4rem; }
+
+/* INSTRUMENT PILL */
+.instrument-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  padding: 0.2rem 0.65rem;
+  border-radius: 20px;
+  font-size: 0.78rem;
+  font-weight: 500;
+  color: var(--text2);
+}
+
+/* DIVIDER */
+hr { border: none; border-top: 1px solid var(--border); margin: 1.5rem 0; }
+
+/* MONO */
+.mono { font-family: 'DM Mono', monospace; }
+</style>
+{% block extra_css %}{% endblock %}
+</head>
+<body>
+<nav>
+  <a href="{{ url_for('index') }}" class="nav-logo">Band<span>Board</span></a>
+  <div class="nav-links">
+    <a href="{{ url_for('auditions') }}">Browse</a>
+    {% if session.get('user_id') %}
+      {% if session.role == 'band' %}
+        <a href="{{ url_for('post_audition') }}">+ Post Audition</a>
+      {% endif %}
+      <a href="{{ url_for('dashboard') }}">Dashboard</a>
+      <span class="nav-user">{{ session.username }} ({{ session.role }})</span>
+      <a href="{{ url_for('logout') }}" class="btn-ghost btn btn-sm">Logout</a>
+    {% else %}
+      <a href="{{ url_for('login') }}">Login</a>
+      <a href="{{ url_for('register') }}" class="btn-nav">Join Free</a>
+    {% endif %}
+  </div>
+</nav>
+<main>
+  {% with messages = get_flashed_messages(with_categories=true) %}
+    {% if messages %}
+      <ul class="flashes">
+        {% for cat, msg in messages %}
+          <li class="flash {{ cat }}">{{ msg }}</li>
+        {% endfor %}
+      </ul>
+    {% endif %}
+  {% endwith %}
+  {% block content %}{% endblock %}
+</main>
+</body>
+</html>

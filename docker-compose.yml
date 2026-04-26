@@ -1,0 +1,28 @@
+version: "3.9"
+
+services:
+  bandboard:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: bandboard_app
+    restart: unless-stopped
+    ports:
+      - "5001:5000"
+    environment:
+      - FLASK_ENV=production
+      - SECRET_KEY=${SECRET_KEY:-bandboard-change-me-in-production}
+      - DATABASE_PATH=/app/data/bandboard.db
+    volumes:
+      # Persist SQLite database between container restarts
+      - bandboard_data:/app/data
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:5000')"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
+volumes:
+  bandboard_data:
+    driver: local

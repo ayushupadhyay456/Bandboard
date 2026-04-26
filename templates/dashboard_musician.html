@@ -1,0 +1,62 @@
+{% extends "base.html" %}
+{% block title %}Musician Dashboard — BandBoard{% endblock %}
+{% block extra_css %}
+<style>
+.dash-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 2rem; flex-wrap: wrap; gap: 1rem; }
+.app-item {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 1.4rem 1.6rem;
+  margin-bottom: 0.75rem;
+  display: flex;
+  gap: 1.5rem;
+  align-items: center;
+  transition: all 0.2s;
+}
+.app-item:hover { border-color: var(--text3); }
+.app-item-main { flex: 1; }
+.app-item-title { font-weight: 600; font-size: 1rem; }
+.app-item-meta { display: flex; gap: 0.5rem; flex-wrap: wrap; margin-top: 0.5rem; align-items: center; }
+.app-item-band { font-size: 0.82rem; color: var(--text3); }
+.app-item-piece { font-size: 0.85rem; color: var(--text2); margin-top: 0.35rem; }
+.app-item-right { display: flex; flex-direction: column; align-items: flex-end; gap: 0.5rem; min-width: 100px; }
+.empty-state { text-align:center; padding:4rem 2rem; color:var(--text2); }
+</style>
+{% endblock %}
+{% block content %}
+<div class="dash-header">
+  <div>
+    <h1 style="font-family:'Bebas Neue',cursive;font-size:2.8rem;letter-spacing:2px;">My Applications</h1>
+    <p style="color:var(--text2);">Track the status of your audition applications</p>
+  </div>
+  <a href="{{ url_for('auditions') }}" class="btn btn-primary">Browse Auditions →</a>
+</div>
+
+{% if applications %}
+  {% for ap in applications %}
+  <div class="app-item">
+    <div class="app-item-main">
+      <div class="app-item-title">{{ ap.title }}</div>
+      <div class="app-item-band">by {{ ap.band_name }}</div>
+      <div class="app-item-meta">
+        <span class="instrument-tag">🎵 {{ ap.instrument }}</span>
+        <span class="badge badge-{{ ap.status }}">{{ ap.status }}</span>
+      </div>
+      <div class="app-item-piece">Piece: {{ ap.piece_name }}</div>
+    </div>
+    <div class="app-item-right">
+      <a href="{{ url_for('audition_detail', aid=ap.audition_id) }}" class="btn btn-ghost btn-sm">View</a>
+      <span style="font-size:0.72rem;color:var(--text3);font-family:'DM Mono',monospace;">{{ ap.created_at[:10] }}</span>
+    </div>
+  </div>
+  {% endfor %}
+{% else %}
+  <div class="empty-state">
+    <div style="font-size:3rem;">🎤</div>
+    <p style="font-size:1rem;font-weight:600;margin-top:0.75rem;">No applications yet</p>
+    <p style="font-size:0.88rem;margin-top:0.3rem;">Browse open auditions and apply to get started</p>
+    <a href="{{ url_for('auditions') }}" class="btn btn-primary" style="margin-top:1.5rem;">Browse Auditions</a>
+  </div>
+{% endif %}
+{% endblock %}

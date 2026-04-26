@@ -1,0 +1,72 @@
+{% extends "base.html" %}
+{% block title %}Register — BandBoard{% endblock %}
+{% block extra_css %}
+<style>
+.auth-wrap { max-width: 460px; margin: 3rem auto; }
+.auth-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 2.5rem; }
+.auth-title { font-family: 'Bebas Neue', cursive; font-size: 2.2rem; letter-spacing: 2px; margin-bottom: 0.25rem; }
+.auth-sub { color: var(--text2); font-size: 0.88rem; margin-bottom: 2rem; }
+.role-picker { display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem; margin-top: 0.4rem; }
+.role-option { position: relative; }
+.role-option input { position: absolute; opacity: 0; }
+.role-label {
+  display: block;
+  padding: 1rem;
+  background: var(--bg3);
+  border: 2px solid var(--border);
+  border-radius: var(--radius);
+  cursor: pointer;
+  transition: all 0.15s;
+  text-align: center;
+}
+.role-label .role-icon { font-size: 1.8rem; display: block; margin-bottom: 0.3rem; }
+.role-label .role-name { font-weight: 600; font-size: 0.9rem; }
+.role-label .role-desc { font-size: 0.75rem; color: var(--text3); margin-top: 0.2rem; }
+.role-option input:checked + .role-label {
+  border-color: var(--accent);
+  background: rgba(232,255,71,0.06);
+}
+.auth-footer { text-align: center; margin-top: 1.5rem; font-size: 0.85rem; color: var(--text3); }
+</style>
+{% endblock %}
+{% block content %}
+<div class="auth-wrap">
+  <div class="auth-card">
+    <div class="auth-title">Join BandBoard</div>
+    <div class="auth-sub">Create your free account</div>
+    <form method="POST">
+      <div class="form-group">
+        <label>Username</label>
+        <input type="text" name="username" required autofocus placeholder="choose a username">
+      </div>
+      <div class="form-group">
+        <label>Password</label>
+        <input type="password" name="password" required placeholder="min 6 characters">
+      </div>
+      <div class="form-group">
+        <label>I am a...</label>
+        <div class="role-picker">
+          <div class="role-option">
+            <input type="radio" name="role" value="band" id="role-band" required>
+            <label for="role-band" class="role-label">
+              <span class="role-icon">🎸</span>
+              <div class="role-name">Band</div>
+              <div class="role-desc">Post auditions & find musicians</div>
+            </label>
+          </div>
+          <div class="role-option">
+            <input type="radio" name="role" value="musician" id="role-musician">
+            <label for="role-musician" class="role-label">
+              <span class="role-icon">🎤</span>
+              <div class="role-name">Musician</div>
+              <div class="role-desc">Apply to auditions & get gigs</div>
+            </label>
+          </div>
+        </div>
+      </div>
+      <button type="submit" class="btn btn-primary" style="width:100%; justify-content:center; padding:0.75rem; margin-top:0.5rem;">Create Account</button>
+    </form>
+  </div>
+  <div class="auth-footer">Already have an account? <a href="{{ url_for('login') }}">Log in</a></div>
+</div>
+{% endblock %}

@@ -1,0 +1,42 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.Python
+*.egg-info/
+dist/
+build/
+.eggs/
+
+# Virtual environments
+venv/
+.venv/
+env/
+.env/
+
+# Database (use Docker volume instead)
+*.db
+*.sqlite
+*.sqlite3
+
+# IDE / OS
+.DS_Store
+.idea/
+.vscode/
+*.swp
+*.swo
+Thumbs.db
+
+# Git
+.git/
+.gitignore
+
+# Docker itself
+Dockerfile
+docker-compose.yml
+.dockerignore
+
+# Docs
+README.md
+*.md

@@ -1,0 +1,31 @@
+{% extends "base.html" %}
+{% block title %}Login — BandBoard{% endblock %}
+{% block extra_css %}
+<style>
+.auth-wrap { max-width: 420px; margin: 3rem auto; }
+.auth-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 2.5rem; }
+.auth-title { font-family: 'Bebas Neue', cursive; font-size: 2.2rem; letter-spacing: 2px; margin-bottom: 0.25rem; }
+.auth-sub { color: var(--text2); font-size: 0.88rem; margin-bottom: 2rem; }
+.auth-footer { text-align: center; margin-top: 1.5rem; font-size: 0.85rem; color: var(--text3); }
+</style>
+{% endblock %}
+{% block content %}
+<div class="auth-wrap">
+  <div class="auth-card">
+    <div class="auth-title">Welcome Back</div>
+    <div class="auth-sub">Log in to your BandBoard account</div>
+    <form method="POST">
+      <div class="form-group">
+        <label>Username</label>
+        <input type="text" name="username" required autofocus placeholder="your_username">
+      </div>
+      <div class="form-group">
+        <label>Password</label>
+        <input type="password" name="password" required placeholder="••••••••">
+      </div>
+      <button type="submit" class="btn btn-primary" style="width:100%; justify-content:center; padding:0.75rem;">Log In</button>
+    </form>
+  </div>
+  <div class="auth-footer">Don't have an account? <a href="{{ url_for('register') }}">Sign up free</a></div>
+</div>
+{% endblock %}
