@@ -1,28 +1,103 @@
-version: "3.9"
+##############################################################################
+# docker-compose.yml  –  BandBoard v2  (no Elasticsearch)
+#
+# Services
+# ────────
+#   web           – Flask + SocketIO (eventlet)
+#   celery-worker – Background task worker
+#   celery-beat   – Periodic task scheduler
+#   flower        – Celery monitoring UI  (http://localhost:5555)
+#   redis         – Cache + message broker
+#   postgres      – Production-grade relational DB
+##############################################################################
 
 services:
-  bandboard:
-    build:
-      context: .
-      dockerfile: Dockerfile
-    container_name: bandboard_app
-    restart: unless-stopped
+
+  # ── Web application ─────────────────────────────────────────────────────────
+  web:
+    build: .
+    command: python app.py
     ports:
-      - "5001:5000"
+      - "5000:5000"
+    env_file: .env
     environment:
-      - FLASK_ENV=production
-      - SECRET_KEY=${SECRET_KEY:-bandboard-change-me-in-production}
-      - DATABASE_PATH=/app/data/bandboard.db
+      FLASK_ENV: development
+      DATABASE_URL: postgresql://bandboard:bandboard@postgres:5432/bandboard
+      REDIS_URL: redis://redis:6379/0
+      REDIS_CACHE_URL: redis://redis:6379/1
+      CELERY_BROKER_URL: redis://redis:6379/0
+      CELERY_RESULT_BACKEND: redis://redis:6379/0
     volumes:
-      # Persist SQLite database between container restarts
-      - bandboard_data:/app/data
-    healthcheck:
-      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:5000')"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 10s
+      - .:/app
+    depends_on:
+      - redis
+      - postgres
+    restart: unless-stopped
+
+  # ── Celery worker ───────────────────────────────────────────────────────────
+  celery-worker:
+    build: .
+    command: celery -A tasks.celery_app worker --loglevel=info --pool=solo
+    env_file: .env
+    environment:
+      DATABASE_URL: postgresql://bandboard:bandboard@postgres:5432/bandboard
+      REDIS_URL: redis://redis:6379/0
+      CELERY_BROKER_URL: redis://redis:6379/0
+      CELERY_RESULT_BACKEND: redis://redis:6379/0
+    volumes:
+      - .:/app
+    depends_on:
+      - redis
+      - postgres
+    restart: unless-stopped
+
+  # ── Celery beat (periodic tasks) ────────────────────────────────────────────
+  celery-beat:
+    build: .
+    command: celery -A tasks.celery_app beat --loglevel=info
+    env_file: .env
+    environment:
+      CELERY_BROKER_URL: redis://redis:6379/0
+    volumes:
+      - .:/app
+    depends_on:
+      - redis
+    restart: unless-stopped
+
+  # ── Flower monitoring UI ────────────────────────────────────────────────────
+  flower:
+    build: .
+    command: celery -A tasks.celery_app flower --port=5555
+    ports:
+      - "5555:5555"
+    environment:
+      CELERY_BROKER_URL: redis://redis:6379/0
+    depends_on:
+      - redis
+    restart: unless-stopped
+
+  # ── Redis ───────────────────────────────────────────────────────────────────
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    restart: unless-stopped
+
+  # ── PostgreSQL ──────────────────────────────────────────────────────────────
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: bandboard
+      POSTGRES_PASSWORD: bandboard
+      POSTGRES_DB: bandboard
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    restart: unless-stopped
 
 volumes:
-  bandboard_data:
-    driver: local
+  redis_data:
+  postgres_data:

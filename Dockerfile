@@ -1,32 +1,31 @@
-# ── Base image ────────────────────────────────────────────────────────────────
-FROM python:3.12-slim
+##############################################################################
+# Dockerfile  –  BandBoard v2
+# Multi-stage build: deps layer cached separately from source code
+##############################################################################
 
-# Prevents .pyc files; forces stdout/stderr flush
-ENV PYTHONDONTWRITEBYTECODE=1 \
-    PYTHONUNBUFFERED=1 \
-    FLASK_APP=app.py \
-    FLASK_ENV=production \
-    DATABASE_PATH=/app/data/bandboard.db
+FROM python:3.12-slim AS base
 
-# Create non-root user for security
-RUN addgroup --system appgroup && adduser --system --ingroup appgroup appuser
+# System deps (for bcrypt, Pillow, python-magic)
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    libmagic1 \
+    libpq-dev \
+    gcc \
+    && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
 
-# Install dependencies (cached layer — only re-runs if requirements change)
+# ── Dependency layer (invalidated only when requirements.txt changes) ─────────
+FROM base AS deps
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy application source
+# ── Final image ───────────────────────────────────────────────────────────────
+FROM deps AS final
 COPY . .
 
-# Create persistent data directory and fix ownership
-RUN mkdir -p /app/data && chown -R appuser:appgroup /app
-
-USER appuser
+# Non-root user for security
+RUN useradd -m bandboard && chown -R bandboard /app
+USER bandboard
 
 EXPOSE 5000
-
-# Production: gunicorn with 2 workers
-# The entrypoint also calls init_db() via a small wrapper
-CMD ["sh", "-c", "python -c 'from app import init_db; init_db()' && gunicorn --bind 0.0.0.0:5000 --workers 2 --timeout 60 app:app"]
+CMD ["python", "app.py"]
