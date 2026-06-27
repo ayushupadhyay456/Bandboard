@@ -1,5 +1,5 @@
 ##############################################################################
-# docker-compose.yml  –  BandBoard v2  (no Elasticsearch)
+# docker-compose.yml  –  BandBoard v2
 #
 # Services
 # ────────
@@ -9,6 +9,8 @@
 #   flower        – Celery monitoring UI  (http://localhost:5555)
 #   redis         – Cache + message broker
 #   postgres      – Production-grade relational DB
+#
+# File uploads saved to local volume (uploads_data) — no S3 required
 ##############################################################################
 
 services:
@@ -29,12 +31,8 @@ services:
       CELERY_RESULT_BACKEND: redis://redis:6379/0
     volumes:
       - .:/app
-    depends_on:
-      - redis
-      - postgres
-    restart: unless-stopped
-
-  # ── Celery worker ───────────────────────────────────────────────────────────
+      - uploads_data:/app/uploads
+    depends_on: ───────────────────────────────────────────────────────────
   celery-worker:
     build: .
     command: celery -A tasks.celery_app worker --loglevel=info --pool=solo
@@ -101,3 +99,4 @@ services:
 volumes:
   redis_data:
   postgres_data:
+  uploads_data:

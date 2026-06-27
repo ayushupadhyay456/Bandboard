@@ -7,9 +7,9 @@ Changes from v1 (raw sqlite3):
  • Passwords stored as bcrypt hashes (was plain SHA-256)
  • Flask-Login mixin on User
  • Location fields on User + Audition (for geo-filtering)
- • MediaFile model for S3/GCS uploads
  • Proper foreign-key relationships with back-populates
  • server_default timestamps so SQLite & Postgres both work
+ • File uploads saved to local disk (no S3)
 """
 
 from datetime import datetime
@@ -90,15 +90,12 @@ class Audition(db.Model):
     band         = db.relationship("User",        back_populates="auditions")
     applications = db.relationship("Application", back_populates="audition",
                                    cascade="all, delete-orphan", lazy="dynamic")
-    media_files  = db.relationship("MediaFile",   back_populates="audition",
-                                   cascade="all, delete-orphan")
 
     @property
     def app_count(self):
         return self.applications.count()
 
     def to_search_dict(self):
-        """Serialise for Elasticsearch indexing."""
         return {
             "id":           self.id,
             "title":        self.title,
@@ -130,13 +127,14 @@ class Application(db.Model):
     video_link  = db.Column(db.String(500), default="")
     status      = db.Column(db.String(10),  default="pending")  # pending|accepted|rejected
 
+    # Local file upload path (relative to /app/uploads/)
+    demo_file_path = db.Column(db.String(500), nullable=True)
+
     created_at  = db.Column(db.DateTime, default=datetime.utcnow)
 
     # Relationships
     audition = db.relationship("Audition", back_populates="applications")
     musician = db.relationship("User",     back_populates="applications")
-    media_files = db.relationship("MediaFile", back_populates="application",
-                                  cascade="all, delete-orphan")
 
     __table_args__ = (
         db.UniqueConstraint("audition_id", "musician_id", name="uq_one_application"),
@@ -144,47 +142,3 @@ class Application(db.Model):
 
     def __repr__(self):
         return f"<Application {self.id} status={self.status}>"
-
-
-# ── MediaFile ─────────────────────────────────────────────────────────────────
-
-class MediaFile(db.Model):
-    """
-    Tracks files uploaded to cloud storage (S3/GCS).
-    Can be attached to an Audition (e.g. sheet music PDF) or an Application
-    (e.g. musician's demo reel).
-    """
-    __tablename__ = "media_files"
-
-    id             = db.Column(db.Integer, primary_key=True)
-    audition_id    = db.Column(db.Integer, db.ForeignKey("auditions.id"),    nullable=True)
-    application_id = db.Column(db.Integer, db.ForeignKey("applications.id"), nullable=True)
-    uploader_id    = db.Column(db.Integer, db.ForeignKey("users.id"),        nullable=False)
-
-    filename       = db.Column(db.String(300), nullable=False)   # original filename
-    storage_key    = db.Column(db.String(500), nullable=False)   # S3/GCS object key
-    storage_url    = db.Column(db.String(500), nullable=False)   # public / signed URL
-    mime_type      = db.Column(db.String(100), default="application/octet-stream")
-    file_size      = db.Column(db.Integer, default=0)            # bytes
-    duration_secs  = db.Column(db.Integer, nullable=True)        # for video/audio
-
-    created_at     = db.Column(db.DateTime, default=datetime.utcnow)
-
-    # Relationships
-    audition    = db.relationship("Audition",    back_populates="media_files")
-    application = db.relationship("Application", back_populates="media_files")
-    uploader    = db.relationship("User")
-
-    @property
-    def size_human(self):
-        """Human-readable file size (e.g. '3.2 MB')."""
-        if self.file_size < 1024:
-            return f"{self.file_size} B"
-        elif self.file_size < 1024 ** 2:
-            return f"{self.file_size/1024:.1f} KB"
-        elif self.file_size < 1024 ** 3:
-            return f"{self.file_size/1024**2:.1f} MB"
-        return f"{self.file_size/1024**3:.1f} GB"
-
-    def __repr__(self):
-        return f"<MediaFile {self.filename} ({self.size_human})>"

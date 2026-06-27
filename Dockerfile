@@ -5,9 +5,8 @@
 
 FROM python:3.12-slim AS base
 
-# System deps (for bcrypt, Pillow, python-magic)
+# System deps (for bcrypt, psycopg2)
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    libmagic1 \
     libpq-dev \
     gcc \
     && rm -rf /var/lib/apt/lists/*

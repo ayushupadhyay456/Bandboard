@@ -10,7 +10,7 @@ Enhanced architecture:
   ✓  bcrypt                (secure password hashing)
   ✓  Redis cache           (browse/index pages, TTL-based invalidation)
   ✓  Celery + Redis        (async email notifications)
-  ✓  AWS S3                (media/file uploads with metadata)
+  ✓  Local file storage    (uploads saved to /app/uploads/)
   ✓  Geolocation fields    (city/country on users & auditions)
   ✓  Flask-Migrate CLI     (`flask db init / migrate / upgrade`)
 """
@@ -28,11 +28,10 @@ from flask_socketio import join_room
 load_dotenv()
 
 from extensions import db, login_manager, migrate, socketio
-from models import Application, Audition, MediaFile, User
+from models import Application, Audition, User
 from utils.cache import (TTL_MEDIUM, TTL_LONG, TTL_SHORT,
                           cache_get, cache_set,
                           invalidate_audition_caches, invalidate_user_caches)
-from utils.storage import upload_file
 
 
 # ── Application factory ───────────────────────────────────────────────────────
@@ -244,12 +243,11 @@ def _register_routes(app):
 
             f = request.files.get("sheet_music")
             if f and f.filename:
-                result = upload_file(f, f.filename, folder=f"auditions/{aud.id}")
-                if result:
-                    db.session.add(MediaFile(audition_id=aud.id,
-                                             uploader_id=current_user.id,
-                                             filename=f.filename, **result))
-                    db.session.commit()
+                import werkzeug.utils, pathlib
+                upload_dir = pathlib.Path("uploads") / "auditions" / str(aud.id)
+                upload_dir.mkdir(parents=True, exist_ok=True)
+                safe_name = werkzeug.utils.secure_filename(f.filename)
+                f.save(upload_dir / safe_name)
 
             invalidate_audition_caches(aud.id)
             invalidate_user_caches(current_user.id)
@@ -284,13 +282,13 @@ def _register_routes(app):
 
         f = request.files.get("demo_file")
         if f and f.filename:
-            result = upload_file(f, f.filename,
-                                 folder=f"applications/{app_obj.id}")
-            if result:
-                db.session.add(MediaFile(application_id=app_obj.id,
-                                         uploader_id=current_user.id,
-                                         filename=f.filename, **result))
-                db.session.commit()
+            import werkzeug.utils, pathlib
+            upload_dir = pathlib.Path("uploads") / "applications" / str(app_obj.id)
+            upload_dir.mkdir(parents=True, exist_ok=True)
+            safe_name = werkzeug.utils.secure_filename(f.filename)
+            f.save(upload_dir / safe_name)
+            app_obj.demo_file_path = str(upload_dir / safe_name)
+            db.session.commit()
 
         if aud.band and aud.band.email:
             from tasks.celery_app import send_application_notification
