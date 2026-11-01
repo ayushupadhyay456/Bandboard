@@ -9,7 +9,7 @@ Changes from v1 (raw sqlite3):
  • Location fields on User + Audition (for geo-filtering)
  • Proper foreign-key relationships with back-populates
  • server_default timestamps so SQLite & Postgres both work
- • File uploads saved to local disk (no S3)
+ • File uploads stored in a private AWS S3 bucket (only the object key is saved here)
 """
 
 from datetime import datetime
@@ -78,6 +78,9 @@ class Audition(db.Model):
     deadline     = db.Column(db.Date,        nullable=True)
     status       = db.Column(db.String(10),  default="open")   # open | closed
 
+    # S3 object key of the sheet-music file (None if the band didn't upload one)
+    sheet_music_key = db.Column(db.String(500), nullable=True)
+
     # Geolocation (inherited from band at post time for fast filtering)
     city         = db.Column(db.String(100), default="")
     country      = db.Column(db.String(100), default="")
@@ -127,7 +130,7 @@ class Application(db.Model):
     video_link  = db.Column(db.String(500), default="")
     status      = db.Column(db.String(10),  default="pending")  # pending|accepted|rejected
 
-    # Local file upload path (relative to /app/uploads/)
+    # S3 object key of the musician's demo file (column name kept so no DB change is needed)
     demo_file_path = db.Column(db.String(500), nullable=True)
 
     created_at  = db.Column(db.DateTime, default=datetime.utcnow)

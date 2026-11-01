@@ -10,7 +10,7 @@ Enhanced architecture:
   ✓  bcrypt                (secure password hashing)
   ✓  Redis cache           (browse/index pages, TTL-based invalidation)
   ✓  Celery + Redis        (async email notifications)
-  ✓  Local file storage    (uploads saved to /app/uploads/)
+  ✓  AWS S3 storage        (private bucket, presigned download links)
   ✓  Geolocation fields    (city/country on users & auditions)
   ✓  Flask-Migrate CLI     (`flask db init / migrate / upgrade`)
 """
@@ -19,7 +19,7 @@ import os
 from datetime import datetime
 
 from dotenv import load_dotenv
-from flask import (Flask, flash, redirect, render_template,
+from flask import (Flask, abort, flash, redirect, render_template,
                    request, url_for, jsonify)
 from flask_login import (current_user, login_required,
                           login_user, logout_user)
@@ -29,6 +29,8 @@ load_dotenv()
 
 from extensions import db, login_manager, migrate, socketio
 from models import Application, Audition, User
+from utils.storage import (DEMO_RULES, SHEET_MUSIC_RULES, StorageError,
+                           presigned_url, upload_file, validate_file)
 from utils.cache import (TTL_MEDIUM, TTL_LONG, TTL_SHORT,
                           cache_get, cache_set,
                           invalidate_audition_caches, invalidate_user_caches)
@@ -122,6 +124,7 @@ def _register_routes(app):
                 return redirect(url_for("login"))
             except Exception:
                 db.session.rollback()
+                app.logger.exception("Register failed")
                 flash("Username or email already taken.", "error")
         return render_template("register.html")
 
@@ -224,6 +227,17 @@ def _register_routes(app):
                     flash("Invalid deadline format.", "error")
                     return redirect(url_for("post_audition"))
 
+            # Validate and upload the optional sheet-music file to S3 first,
+            # so a bad file never leaves a half-created audition behind.
+            sheet_music_key = None
+            f = request.files.get("sheet_music")
+            if f and f.filename:
+                try:
+                    sheet_music_key = upload_file(f, "auditions", SHEET_MUSIC_RULES)
+                except StorageError as e:
+                    flash(str(e), "error")
+                    return redirect(url_for("post_audition"))
+
             aud = Audition(
                 band_id     = current_user.id,
                 title       = request.form["title"].strip(),
@@ -233,6 +247,7 @@ def _register_routes(app):
                 piece_details = request.form["piece_details"].strip(),
                 genre       = request.form.get("genre", "").strip(),
                 deadline    = deadline,
+                sheet_music_key = sheet_music_key,
                 city        = current_user.city,
                 country     = current_user.country,
                 lat         = current_user.lat,
@@ -240,14 +255,6 @@ def _register_routes(app):
             )
             db.session.add(aud)
             db.session.commit()
-
-            f = request.files.get("sheet_music")
-            if f and f.filename:
-                import werkzeug.utils, pathlib
-                upload_dir = pathlib.Path("uploads") / "auditions" / str(aud.id)
-                upload_dir.mkdir(parents=True, exist_ok=True)
-                safe_name = werkzeug.utils.secure_filename(f.filename)
-                f.save(upload_dir / safe_name)
 
             invalidate_audition_caches(aud.id)
             invalidate_user_caches(current_user.id)
@@ -271,24 +278,25 @@ def _register_routes(app):
             flash("You already applied to this audition.", "error")
             return redirect(url_for("audition_detail", aid=aid))
 
+        # Validate and upload the optional demo file to S3 first.
+        demo_key = None
+        f = request.files.get("demo_file")
+        if f and f.filename:
+            try:
+                demo_key = upload_file(f, "applications", DEMO_RULES)
+            except StorageError as e:
+                flash(str(e), "error")
+                return redirect(url_for("audition_detail", aid=aid))
+
         app_obj = Application(
-            audition_id = aid,
-            musician_id = current_user.id,
-            message     = request.form["message"].strip(),
-            video_link  = request.form.get("video_link", "").strip(),
+            audition_id    = aid,
+            musician_id    = current_user.id,
+            message        = request.form["message"].strip(),
+            video_link     = request.form.get("video_link", "").strip(),
+            demo_file_path = demo_key,
         )
         db.session.add(app_obj)
         db.session.commit()
-
-        f = request.files.get("demo_file")
-        if f and f.filename:
-            import werkzeug.utils, pathlib
-            upload_dir = pathlib.Path("uploads") / "applications" / str(app_obj.id)
-            upload_dir.mkdir(parents=True, exist_ok=True)
-            safe_name = werkzeug.utils.secure_filename(f.filename)
-            f.save(upload_dir / safe_name)
-            app_obj.demo_file_path = str(upload_dir / safe_name)
-            db.session.commit()
 
         if aud.band and aud.band.email:
             from tasks.celery_app import send_application_notification
@@ -307,6 +315,36 @@ def _register_routes(app):
         invalidate_user_caches(current_user.id)
         flash("Application submitted! Good luck 🎸", "success")
         return redirect(url_for("audition_detail", aid=aid))
+
+    # ── Private file downloads (short-lived S3 links) ─────────────────────────
+    @app.route("/audition/<int:aid>/sheet-music")
+    @login_required
+    def download_sheet_music(aid):
+        aud = db.session.get(Audition, aid)
+        if not aud or not aud.sheet_music_key:
+            abort(404)
+        try:
+            return redirect(presigned_url(aud.sheet_music_key))
+        except StorageError as e:
+            flash(str(e), "error")
+            return redirect(url_for("audition_detail", aid=aid))
+
+    @app.route("/application/<int:app_id>/demo")
+    @login_required
+    def download_demo(app_id):
+        app_obj = db.session.get(Application, app_id)
+        if not app_obj or not app_obj.demo_file_path:
+            abort(404)
+        # Only the band that owns the audition, or the musician who applied
+        is_band_owner = app_obj.audition.band_id == current_user.id
+        is_applicant  = app_obj.musician_id == current_user.id
+        if not (is_band_owner or is_applicant):
+            abort(403)
+        try:
+            return redirect(presigned_url(app_obj.demo_file_path))
+        except StorageError as e:
+            flash(str(e), "error")
+            return redirect(url_for("audition_detail", aid=app_obj.audition_id))
 
     # ── Update application status ──────────────────────────────────────────────
     @app.route("/application/<int:app_id>/update", methods=["POST"])
