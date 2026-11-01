@@ -1,179 +1,171 @@
 """
 utils/storage.py
 ────────────────
-Cloud storage helpers for BandBoard.
+All S3 logic for BandBoard in one place.
 
-Supports AWS S3 (default).  Swap ``_get_client()`` for a GCS client if needed.
+  • validate_file()  – checks size, extension and the file's real content
+                       (magic bytes), not just what the browser claims
+  • upload_file()    – validates, then uploads to a PRIVATE S3 bucket and
+                       returns the object key (store this key in the DB)
+  • presigned_url()  – short-lived download link for a private object
 
-Allowed file types
-──────────────────
-  Audio : mp3, wav, flac, ogg, m4a
-  Video : mp4, mov, webm, avi
-  Docs  : pdf
-  Images: jpg, jpeg, png, webp
-
-Max size: configurable via MAX_UPLOAD_SIZE env var (default 50 MB).
+Environment variables (set them in Render):
+  S3_BUCKET              name of your bucket
+  AWS_REGION             region of your bucket, e.g. ap-south-1
+  AWS_ACCESS_KEY_ID      from the IAM user you create
+  AWS_SECRET_ACCESS_KEY  from the IAM user you create
 """
 
-import io
 import logging
-import mimetypes
 import os
 import uuid
-from typing import Optional, Tuple
+from functools import lru_cache
+
+import boto3
+from botocore.config import Config
+from botocore.exceptions import BotoCoreError, ClientError
+from werkzeug.utils import secure_filename
 
 log = logging.getLogger(__name__)
 
-# ── Config ────────────────────────────────────────────────────────────────────
+PRESIGNED_URL_TTL = 300  # seconds (5 minutes)
 
-BUCKET          = os.environ.get("AWS_S3_BUCKET",    "bandboard-media")
-REGION          = os.environ.get("AWS_S3_REGION",    "us-east-1")
-MAX_SIZE        = int(os.environ.get("MAX_UPLOAD_SIZE", 52_428_800))  # 50 MB
 
-ALLOWED_MIME_TYPES = {
-    # Audio
-    "audio/mpeg",  "audio/wav",  "audio/flac",
-    "audio/ogg",   "audio/mp4",  "audio/x-m4a",
-    # Video
-    "video/mp4",   "video/quicktime", "video/webm", "video/x-msvideo",
-    # Documents
-    "application/pdf",
-    # Images
-    "image/jpeg",  "image/png",  "image/webp",
+class StorageError(Exception):
+    """Raised with a message that is safe to show to the user."""
+
+
+# ── What each extension must look like inside ────────────────────────────────
+# ext -> (mime type we store on the object, function that checks the header)
+def _starts(prefix):
+    return lambda head: head.startswith(prefix)
+
+
+def _mp3(head):
+    return head.startswith(b"ID3") or (
+        len(head) > 1 and head[0] == 0xFF and (head[1] & 0xE0) == 0xE0
+    )
+
+
+def _wav(head):
+    return head[:4] == b"RIFF" and head[8:12] == b"WAVE"
+
+
+def _mp4(head):
+    return head[4:8] == b"ftyp"
+
+
+FILE_TYPES = {
+    "pdf":  ("application/pdf", _starts(b"%PDF")),
+    "png":  ("image/png",       _starts(b"\x89PNG\r\n\x1a\n")),
+    "jpg":  ("image/jpeg",      _starts(b"\xff\xd8\xff")),
+    "jpeg": ("image/jpeg",      _starts(b"\xff\xd8\xff")),
+    "mp3":  ("audio/mpeg",      _mp3),
+    "wav":  ("audio/wav",       _wav),
+    "m4a":  ("audio/mp4",       _mp4),
+    "mp4":  ("video/mp4",       _mp4),
+    "webm": ("video/webm",      _starts(b"\x1a\x45\xdf\xa3")),
+    "ogg":  ("audio/ogg",       _starts(b"OggS")),
 }
 
-ALLOWED_EXTENSIONS = {
-    "mp3", "wav", "flac", "ogg", "m4a",
-    "mp4", "mov", "webm", "avi",
-    "pdf",
-    "jpg", "jpeg", "png", "webp",
+MB = 1024 * 1024
+
+# Per-upload-kind rules
+SHEET_MUSIC_RULES = {"extensions": {"pdf", "png", "jpg", "jpeg"}, "max_bytes": 10 * MB}
+DEMO_RULES = {
+    "extensions": {"mp3", "wav", "m4a", "mp4", "webm", "ogg", "pdf"},
+    "max_bytes": 50 * MB,
 }
 
 
-def _get_client():
-    """Return a boto3 S3 client. Returns None if boto3/credentials are missing."""
-    try:
-        import boto3
-        return boto3.client(
-            "s3",
-            region_name=REGION,
-            aws_access_key_id=os.environ.get("AWS_ACCESS_KEY_ID"),
-            aws_secret_access_key=os.environ.get("AWS_SECRET_ACCESS_KEY"),
+# ── S3 client ────────────────────────────────────────────────────────────────
+@lru_cache(maxsize=1)
+def _client():
+    """Create the S3 client once. boto3 reads the AWS_* keys from the environment."""
+    return boto3.client(
+        "s3",
+        region_name=os.environ.get("AWS_REGION", "ap-south-1"),
+        config=Config(signature_version="s3v4"),
+    )
+
+
+def _bucket():
+    name = os.environ.get("S3_BUCKET")
+    if not name:
+        raise StorageError("File storage is not configured.")
+    return name
+
+
+# ── Validation ───────────────────────────────────────────────────────────────
+def validate_file(file_storage, rules):
+    """
+    Check a Werkzeug FileStorage. Returns (safe_name, extension, mime_type).
+    Raises StorageError with a user-friendly message if anything is wrong.
+    """
+    safe_name = secure_filename(file_storage.filename or "")
+    if "." not in safe_name:
+        raise StorageError("Please upload a file with a valid extension.")
+
+    ext = safe_name.rsplit(".", 1)[1].lower()
+    if ext not in rules["extensions"]:
+        allowed = ", ".join(sorted(rules["extensions"]))
+        raise StorageError(f"File type .{ext} is not allowed. Allowed: {allowed}.")
+
+    stream = file_storage.stream
+    stream.seek(0, os.SEEK_END)
+    size = stream.tell()
+    stream.seek(0)
+    if size == 0:
+        raise StorageError("The uploaded file is empty.")
+    if size > rules["max_bytes"]:
+        raise StorageError(
+            f"File is too large. Maximum size is {rules['max_bytes'] // MB} MB."
         )
-    except ImportError:
-        log.warning("boto3 not installed – cloud storage disabled")
-        return None
-    except Exception as exc:
-        log.error("Failed to create S3 client: %s", exc)
-        return None
+
+    # Check the real content: the first bytes must match the claimed type.
+    head = stream.read(16)
+    stream.seek(0)
+    mime, matches = FILE_TYPES[ext]
+    if not matches(head):
+        raise StorageError("The file content does not match its extension.")
+
+    return safe_name, ext, mime
 
 
-def _extension(filename: str) -> str:
-    return filename.rsplit(".", 1)[-1].lower() if "." in filename else ""
-
-
-def validate_upload(filename: str, filesize: int) -> Tuple[bool, str]:
+# ── Upload / download ────────────────────────────────────────────────────────
+def upload_file(file_storage, prefix, rules):
     """
-    Returns (True, '') if the file is acceptable, or (False, reason) if not.
+    Validate and upload. Returns the S3 object key, for example
+    'auditions/3f9c...e1_sheet.pdf'. Save this key in the database.
     """
-    ext = _extension(filename)
-    if ext not in ALLOWED_EXTENSIONS:
-        return False, f"File type '.{ext}' is not allowed."
-    if filesize > MAX_SIZE:
-        mb = MAX_SIZE // (1024 * 1024)
-        return False, f"File exceeds the {mb} MB size limit."
-    return True, ""
-
-
-def upload_file(
-    file_obj,
-    filename: str,
-    folder: str = "uploads",
-    public: bool = False,
-) -> Optional[dict]:
-    """
-    Upload *file_obj* (a file-like object) to S3.
-
-    Returns a dict with:
-        storage_key  – S3 object key
-        storage_url  – HTTPS URL to the object
-        mime_type    – detected MIME type
-        file_size    – size in bytes
-
-    Returns None on failure.
-    """
-    s3 = _get_client()
-    if s3 is None:
-        return None
-
-    # Read & measure
-    data = file_obj.read()
-    file_size = len(data)
-
-    ok, reason = validate_upload(filename, file_size)
-    if not ok:
-        log.warning("upload_file rejected '%s': %s", filename, reason)
-        return None
-
-    # Detect MIME
-    mime, _ = mimetypes.guess_type(filename)
-    if mime not in ALLOWED_MIME_TYPES:
-        mime = "application/octet-stream"
-
-    # Build unique key
-    ext = _extension(filename)
-    storage_key = f"{folder}/{uuid.uuid4().hex}.{ext}"
-
-    extra_args = {"ContentType": mime}
-    if public:
-        extra_args["ACL"] = "public-read"
-
+    safe_name, _ext, mime = validate_file(file_storage, rules)
+    key = f"{prefix}/{uuid.uuid4().hex}_{safe_name}"
     try:
-        s3.upload_fileobj(
-            io.BytesIO(data),
-            BUCKET,
-            storage_key,
-            ExtraArgs=extra_args,
+        _client().upload_fileobj(
+            file_storage.stream,
+            _bucket(),
+            key,
+            ExtraArgs={"ContentType": mime},
         )
-        storage_url = f"https://{BUCKET}.s3.{REGION}.amazonaws.com/{storage_key}"
-        return {
-            "storage_key": storage_key,
-            "storage_url": storage_url,
-            "mime_type":   mime,
-            "file_size":   file_size,
-        }
-    except Exception as exc:
-        log.error("S3 upload failed: %s", exc)
-        return None
+    except (ClientError, BotoCoreError):
+        log.exception("S3 upload failed for key %s", key)
+        raise StorageError("Upload failed. Please try again.")
+    return key
 
 
-def delete_file(storage_key: str) -> bool:
-    """Delete an object from S3. Returns True on success."""
-    s3 = _get_client()
-    if s3 is None:
-        return False
+def presigned_url(key, expires=PRESIGNED_URL_TTL):
+    """Temporary download link for a private object."""
+    filename = key.rsplit("/", 1)[-1].split("_", 1)[-1]
     try:
-        s3.delete_object(Bucket=BUCKET, Key=storage_key)
-        return True
-    except Exception as exc:
-        log.error("S3 delete failed: %s", exc)
-        return False
-
-
-def get_presigned_url(storage_key: str, expires_in: int = 3600) -> Optional[str]:
-    """
-    Generate a temporary pre-signed URL for a private S3 object.
-    Useful for private demo reels that shouldn't be publicly accessible.
-    """
-    s3 = _get_client()
-    if s3 is None:
-        return None
-    try:
-        return s3.generate_presigned_url(
+        return _client().generate_presigned_url(
             "get_object",
-            Params={"Bucket": BUCKET, "Key": storage_key},
-            ExpiresIn=expires_in,
+            Params={
+                "Bucket": _bucket(),
+                "Key": key,
+                "ResponseContentDisposition": f'attachment; filename="{filename}"',
+            },
+            ExpiresIn=expires,
         )
-    except Exception as exc:
-        log.error("Presigned URL generation failed: %s", exc)
-        return None
+    except (ClientError, BotoCoreError):
+        log.exception("Could not create presigned URL for %s", key)
+        raise StorageError("Could not create the download link.")
