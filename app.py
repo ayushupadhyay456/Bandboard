@@ -48,13 +48,27 @@ def _view(aud, band_name):
     )
 
 
+def _database_url():
+    """DATABASE_URL from the environment, fixed to the form SQLAlchemy needs."""
+    url = os.environ.get("DATABASE_URL", "sqlite:///bandboard.db")
+    # Hosts give "postgres://" or "postgresql://". Newer SQLAlchemy would then
+    # look for the psycopg3 driver, but we install psycopg2, so name it explicitly.
+    for prefix in ("postgres://", "postgresql://"):
+        if url.startswith(prefix):
+            return "postgresql+psycopg2://" + url[len(prefix):]
+    return url
+
+
 # ── Application factory ───────────────────────────────────────────────────────
 
 def create_app(config_override=None):
     app = Flask(__name__)
 
     app.config["SECRET_KEY"]                  = os.environ.get("SECRET_KEY", "dev-only-secret")
-    app.config["SQLALCHEMY_DATABASE_URI"]     = os.environ.get("DATABASE_URL", "sqlite:///bandboard.db")
+    app.config["SQLALCHEMY_DATABASE_URI"]     = _database_url()
+    # Neon (and other hosted databases) close idle connections: test each
+    # connection before use and replace old ones.
+    app.config["SQLALCHEMY_ENGINE_OPTIONS"]   = {"pool_pre_ping": True, "pool_recycle": 300}
     app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
     app.config["MAX_CONTENT_LENGTH"]          = int(os.environ.get("MAX_UPLOAD_SIZE", 52_428_800))
 
@@ -78,6 +92,17 @@ def create_app(config_override=None):
 
     _register_routes(app)
     _register_socket_events()
+
+    if app.config["SECRET_KEY"] == "dev-only-secret":
+        app.logger.warning("SECRET_KEY is not set - using the public default. Set it in Render.")
+
+    # Create any missing tables. Safe on every start: it never changes tables
+    # that already exist (new columns on old tables still need an ALTER TABLE).
+    with app.app_context():
+        try:
+            db.create_all()
+        except Exception:
+            app.logger.exception("db.create_all() failed - check DATABASE_URL")
 
     return app
 
