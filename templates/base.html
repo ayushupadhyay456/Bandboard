@@ -193,12 +193,12 @@ hr { border: none; border-top: 1px solid var(--border); margin: 1.5rem 0; }
   <a href="{{ url_for('index') }}" class="nav-logo">Band<span>Board</span></a>
   <div class="nav-links">
     <a href="{{ url_for('auditions') }}">Browse</a>
-    {% if session.get('user_id') %}
-      {% if session.role == 'band' %}
+    {% if current_user.is_authenticated %}
+      {% if current_user.role == 'band' %}
         <a href="{{ url_for('post_audition') }}">+ Post Audition</a>
       {% endif %}
       <a href="{{ url_for('dashboard') }}">Dashboard</a>
-      <span class="nav-user">{{ session.username }} ({{ session.role }})</span>
+      <span class="nav-user">{{ current_user.username }} ({{ current_user.role }})</span>
       <a href="{{ url_for('logout') }}" class="btn-ghost btn btn-sm">Logout</a>
     {% else %}
       <a href="{{ url_for('login') }}">Login</a>

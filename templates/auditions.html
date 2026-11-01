@@ -110,7 +110,7 @@
   <div class="empty-state">
     <div style="font-size:3rem;">🎸</div>
     <p>No open auditions match your filters.</p>
-    {% if session.get('role') == 'band' %}
+    {% if current_user.is_authenticated and current_user.role == 'band' %}
       <a href="{{ url_for('post_audition') }}" class="btn btn-primary" style="margin-top:1rem;">Post One Now</a>
     {% endif %}
   </div>

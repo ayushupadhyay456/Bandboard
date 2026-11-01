@@ -17,6 +17,7 @@ Enhanced architecture:
 
 import os
 from datetime import datetime
+from types import SimpleNamespace
 
 from dotenv import load_dotenv
 from flask import (Flask, abort, flash, redirect, render_template,
@@ -34,6 +35,17 @@ from utils.storage import (DEMO_RULES, SHEET_MUSIC_RULES, StorageError,
 from utils.cache import (TTL_MEDIUM, TTL_LONG, TTL_SHORT,
                           cache_get, cache_set,
                           invalidate_audition_caches, invalidate_user_caches)
+
+
+def _view(aud, band_name):
+    """Plain object for the templates: dates as text, no database session needed."""
+    return SimpleNamespace(
+        id=aud.id, title=aud.title, band_name=band_name,
+        instrument=aud.instrument, genre=aud.genre or "",
+        piece_name=aud.piece_name, description=aud.description,
+        deadline=aud.deadline,
+        created_at=str(aud.created_at) if aud.created_at else "",
+    )
 
 
 # ── Application factory ───────────────────────────────────────────────────────
@@ -78,8 +90,10 @@ def _register_routes(app):
     @app.route("/")
     def index():
         CACHE_KEY = "auditions:index"
-        auditions = cache_get(CACHE_KEY)
-        if not auditions:
+        cached = cache_get(CACHE_KEY)
+        if cached:
+            auditions = [SimpleNamespace(**d) for d in cached]
+        else:
             rows = (
                 db.session.query(Audition, User.username.label("band_name"))
                 .join(User, Audition.band_id == User.id)
@@ -87,18 +101,13 @@ def _register_routes(app):
                 .order_by(Audition.created_at.desc())
                 .limit(12).all()
             )
-            auditions = rows
-            cache_set(CACHE_KEY, [
-                {**{c.key: getattr(a, c.key) for c in Audition.__table__.columns},
-                 "band_name": bn, "created_at": str(a.created_at)}
-                for a, bn in rows
-            ], TTL_MEDIUM)
-            auditions = rows
-        else:
-            class _Row:
-                def __init__(self, d):
-                    self.__dict__.update(d)
-            auditions = [_Row(d) for d in auditions]
+            data = []
+            for aud, band_name in rows:
+                d = vars(_view(aud, band_name))
+                d["deadline"] = str(d["deadline"]) if d["deadline"] else ""
+                data.append(d)           # plain text only, safe to cache
+            cache_set(CACHE_KEY, data, TTL_MEDIUM)
+            auditions = [SimpleNamespace(**d) for d in data]
 
         return render_template("index.html", auditions=auditions)
 
@@ -180,35 +189,46 @@ def _register_routes(app):
                 )
             )
         rows = query.order_by(Audition.created_at.desc()).offset((page - 1) * PER_PAGE).limit(PER_PAGE).all()
-        return render_template("auditions.html", auditions=rows,
-                               instrument=instrument, genre=genre, q=q,
-                               city=city, page=page)
+        items = [_view(aud, band_name) for aud, band_name in rows]
+
+        # Values for the two filter dropdowns
+        instruments = (db.session.query(Audition.instrument)
+                       .filter(Audition.status == "open")
+                       .distinct().order_by(Audition.instrument).all())
+        genres = (db.session.query(Audition.genre)
+                  .filter(Audition.status == "open", Audition.genre != "")
+                  .distinct().order_by(Audition.genre).all())
+
+        return render_template("auditions.html", auditions=items,
+                               instruments=instruments, genres=genres,
+                               selected_inst=instrument, selected_genre=genre,
+                               q=q, city=city, page=page)
 
     # ── Audition detail ───────────────────────────────────────────────────────
     @app.route("/audition/<int:aid>")
     def audition_detail(aid):
-        CACHE_KEY = f"auditions:detail:{aid}"
-        aud = cache_get(CACHE_KEY)
+        aud = db.session.get(Audition, aid)
         if not aud:
-            aud = db.session.get(Audition, aid)
-            if not aud:
-                flash("Audition not found.", "error")
-                return redirect(url_for("auditions"))
-            cache_set(CACHE_KEY, aud, TTL_SHORT)
-        apps = []
+            flash("Audition not found.", "error")
+            return redirect(url_for("auditions"))
+
+        band_name = aud.band.username if aud.band else ""
+        applications = []
         if current_user.is_authenticated and current_user.role == "band" \
                 and aud.band_id == current_user.id:
-            apps = (
+            applications = (
                 db.session.query(Application, User.username.label("musician_name"))
                 .join(User, Application.musician_id == User.id)
-                .filter(Application.audition_id == aid).all()
+                .filter(Application.audition_id == aid)
+                .order_by(Application.created_at.desc()).all()
             )
         user_applied = False
         if current_user.is_authenticated and current_user.role == "musician":
             user_applied = Application.query.filter_by(
                 audition_id=aid, musician_id=current_user.id).first() is not None
         return render_template("audition_detail.html", audition=aud,
-                               applications=apps, user_applied=user_applied)
+                               band_name=band_name, applications=applications,
+                               user_applied=user_applied)
 
     # ── Post audition ─────────────────────────────────────────────────────────
     @app.route("/post-audition", methods=["GET", "POST"])
@@ -408,10 +428,14 @@ def _register_routes(app):
                 .group_by(Audition.id)
                 .order_by(Audition.created_at.desc()).all()
             )
-            items = []
-            for aud, count in raw:
-                aud.app_count = count
-                items.append(aud)
+            items = [
+                SimpleNamespace(
+                    id=aud.id, title=aud.title, status=aud.status,
+                    instrument=aud.instrument, genre=aud.genre or "",
+                    app_count=count, created_at=str(aud.created_at),
+                )
+                for aud, count in raw
+            ]
             return render_template("dashboard_band.html", auditions=items)
         else:
             raw = (
@@ -423,13 +447,15 @@ def _register_routes(app):
                 .filter(Application.musician_id == current_user.id)
                 .order_by(Application.created_at.desc()).all()
             )
-            items = []
-            for app_obj, title, instrument, piece_name, band_name in raw:
-                app_obj.title      = title
-                app_obj.instrument = instrument
-                app_obj.piece_name = piece_name
-                app_obj.band_name  = band_name
-                items.append(app_obj)
+            items = [
+                SimpleNamespace(
+                    id=ap.id, audition_id=ap.audition_id, status=ap.status,
+                    created_at=str(ap.created_at), title=title,
+                    instrument=instrument, piece_name=piece_name,
+                    band_name=band_name,
+                )
+                for ap, title, instrument, piece_name, band_name in raw
+            ]
             return render_template("dashboard_musician.html", applications=items)
 
     # ── Location update API ────────────────────────────────────────────────────

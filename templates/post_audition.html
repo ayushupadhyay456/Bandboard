@@ -17,7 +17,7 @@
     <p>Find the perfect musician for your band</p>
   </div>
   <div class="post-card">
-    <form method="POST">
+    <form method="POST" enctype="multipart/form-data">
       <div class="section-divider">Basic Info</div>
       <div class="form-group">
         <label>Audition Title *</label>
@@ -49,6 +49,12 @@
       <div class="form-group">
         <label>Performance Instructions *</label>
         <textarea name="piece_details" required rows="4" placeholder="Describe what you want them to play: the specific section, timing, key, tempo. Link to sheet music or a reference recording if available."></textarea>
+      </div>
+
+      <div class="form-group">
+        <label>Sheet Music (optional)</label>
+        <input type="file" name="sheet_music" accept=".pdf,.png,.jpg,.jpeg" style="color:var(--text2);">
+        <div style="font-size:0.75rem;color:var(--text3);margin-top:0.3rem;">PDF, PNG or JPG — up to 10 MB</div>
       </div>
 
       <div class="section-divider">Timeline</div>

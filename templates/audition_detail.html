@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% block title %}{{ aud.title }} — BandBoard{% endblock %}
+{% block title %}{{ audition.title }} — BandBoard{% endblock %}
 {% block extra_css %}
 <style>
 .detail-layout { display: grid; grid-template-columns: 1fr 340px; gap: 2rem; align-items: start; }
@@ -53,6 +53,7 @@
   font-size: 0.88rem;
   text-align: center;
 }
+input[type=file] { width: 100%; color: var(--text2); font-size: 0.85rem; }
 
 /* Applications list (band view) */
 .apps-section { margin-top: 2.5rem; }
@@ -66,114 +67,131 @@
 .app-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.6rem; }
 .app-musician { font-weight: 600; font-size: 0.95rem; }
 .app-message { font-size: 0.88rem; color: var(--text2); line-height: 1.5; margin-bottom: 0.75rem; }
-.app-video { font-size: 0.85rem; }
+.app-video { font-size: 0.85rem; margin-bottom: 0.3rem; }
 .app-actions { display: flex; gap: 0.5rem; flex-wrap: wrap; align-items: center; }
 .status-form { display: inline-flex; gap: 0.5rem; }
 </style>
 {% endblock %}
 {% block content %}
+{% set is_owner_band = current_user.is_authenticated and current_user.role == 'band' and current_user.id == audition.band_id %}
+
 <a href="{{ url_for('auditions') }}" class="btn btn-ghost btn-sm" style="margin-bottom:1.5rem;">← Back to Auditions</a>
 
 <div class="detail-layout">
   <div class="detail-main">
     <div class="detail-header">
       <div class="detail-meta">
-        <span class="badge badge-{{ aud.status }}">{{ aud.status }}</span>
-        <span class="instrument-tag">🎵 {{ aud.instrument }}</span>
-        {% if aud.genre %}<span class="instrument-tag">{{ aud.genre }}</span>{% endif %}
+        <span class="badge badge-{{ audition.status }}">{{ audition.status }}</span>
+        <span class="instrument-tag">🎵 {{ audition.instrument }}</span>
+        {% if audition.genre %}<span class="instrument-tag">{{ audition.genre }}</span>{% endif %}
       </div>
-      <h1 class="detail-title">{{ aud.title }}</h1>
-      <div class="detail-band">Posted by <strong>{{ aud.band_name }}</strong> · {{ aud.created_at[:10] }}</div>
+      <h1 class="detail-title">{{ audition.title }}</h1>
+      <div class="detail-band">
+        Posted by <strong>{{ band_name }}</strong>
+        {% if audition.created_at %}· {{ audition.created_at.strftime('%Y-%m-%d') }}{% endif %}
+      </div>
     </div>
 
     <div class="info-section">
       <div class="info-label">About This Audition</div>
-      <div class="info-value">{{ aud.description }}</div>
+      <div class="info-value">{{ audition.description }}</div>
     </div>
 
     <div class="info-label" style="margin-bottom:0.6rem;">Piece to Perform</div>
     <div class="piece-box">
-      <div class="piece-name">🎼 {{ aud.piece_name }}</div>
-      <div class="piece-details">{{ aud.piece_details }}</div>
+      <div class="piece-name">🎼 {{ audition.piece_name }}</div>
+      <div class="piece-details">{{ audition.piece_details }}</div>
+      {% if audition.sheet_music_key %}
+        <div style="margin-top:0.9rem;">
+          {% if current_user.is_authenticated %}
+            <a href="{{ url_for('download_sheet_music', aid=audition.id) }}" class="btn btn-ghost btn-sm">📄 Download sheet music</a>
+          {% else %}
+            <span style="font-size:0.82rem;color:var(--text3);">📄 Sheet music available — <a href="{{ url_for('login') }}">log in</a> to download</span>
+          {% endif %}
+        </div>
+      {% endif %}
     </div>
 
-    {% if aud.deadline %}
+    {% if audition.deadline %}
     <div class="info-section">
       <div class="info-label">Application Deadline</div>
-      <div class="info-value" style="color:var(--warning); font-family:'DM Mono',monospace;">{{ aud.deadline }}</div>
+      <div class="info-value" style="color:var(--warning); font-family:'DM Mono',monospace;">{{ audition.deadline }}</div>
     </div>
     {% endif %}
 
-    {% if aud.band_bio %}
+    {% if audition.band and audition.band.bio %}
     <div class="info-section">
       <div class="info-label">About the Band</div>
-      <div class="info-value" style="color:var(--text2);">{{ aud.band_bio }}</div>
+      <div class="info-value" style="color:var(--text2);">{{ audition.band.bio }}</div>
     </div>
     {% endif %}
 
     <!-- Band sees applications -->
-    {% if apps is defined and apps %}
+    {% if is_owner_band %}
     <div class="apps-section">
       <h2 style="font-family:'Bebas Neue',cursive;font-size:1.6rem;letter-spacing:1px;margin-bottom:1rem;">
-        Applications ({{ apps|length }})
+        Applications ({{ applications|length }})
       </h2>
-      {% for ap in apps %}
-      <div class="app-item">
-        <div class="app-header">
-          <span class="app-musician">🎤 {{ ap.musician_name }}</span>
-          <span class="badge badge-{{ ap.status }}">{{ ap.status }}</span>
-        </div>
-        <div class="app-message">{{ ap.message }}</div>
-        {% if ap.video_link %}
-          <div class="app-video">📹 <a href="{{ ap.video_link }}" target="_blank">Watch Performance</a></div>
-        {% endif %}
-        <div class="app-actions" style="margin-top:0.75rem;">
-          <span style="font-size:0.75rem;color:var(--text3);font-family:'DM Mono',monospace;">{{ ap.created_at[:10] }}</span>
-          <div style="margin-left:auto;">
-            <form method="POST" action="{{ url_for('update_application', app_id=ap.id) }}" class="status-form">
-              <select name="status" style="padding:0.3rem 0.5rem;font-size:0.8rem;width:auto;">
-                <option value="pending" {% if ap.status=='pending' %}selected{% endif %}>Pending</option>
-                <option value="accepted" {% if ap.status=='accepted' %}selected{% endif %}>Accept</option>
-                <option value="rejected" {% if ap.status=='rejected' %}selected{% endif %}>Reject</option>
-              </select>
-              <button type="submit" class="btn btn-ghost btn-sm">Update</button>
-            </form>
+      {% if applications %}
+        {% for ap, musician_name in applications %}
+        <div class="app-item">
+          <div class="app-header">
+            <span class="app-musician">🎤 {{ musician_name }}</span>
+            <span class="badge badge-{{ ap.status }}">{{ ap.status }}</span>
+          </div>
+          <div class="app-message">{{ ap.message }}</div>
+          {% if ap.video_link %}
+            <div class="app-video">📹 <a href="{{ ap.video_link }}" target="_blank" rel="noopener">Watch Performance</a></div>
+          {% endif %}
+          {% if ap.demo_file_path %}
+            <div class="app-video">🎧 <a href="{{ url_for('download_demo', app_id=ap.id) }}">Download demo file</a></div>
+          {% endif %}
+          <div class="app-actions" style="margin-top:0.75rem;">
+            <span style="font-size:0.75rem;color:var(--text3);font-family:'DM Mono',monospace;">
+              {% if ap.created_at %}{{ ap.created_at.strftime('%Y-%m-%d') }}{% endif %}
+            </span>
+            <div style="margin-left:auto;">
+              <form method="POST" action="{{ url_for('update_application', app_id=ap.id) }}" class="status-form">
+                <select name="status" style="padding:0.3rem 0.5rem;font-size:0.8rem;width:auto;">
+                  <option value="pending" {% if ap.status=='pending' %}selected{% endif %}>Pending</option>
+                  <option value="accepted" {% if ap.status=='accepted' %}selected{% endif %}>Accept</option>
+                  <option value="rejected" {% if ap.status=='rejected' %}selected{% endif %}>Reject</option>
+                </select>
+                <button type="submit" class="btn btn-ghost btn-sm">Update</button>
+              </form>
+            </div>
           </div>
         </div>
-      </div>
-      {% endfor %}
+        {% endfor %}
+      {% else %}
+        <div style="color:var(--text3);font-size:0.9rem;">No applications yet. Share this audition to attract musicians!</div>
+      {% endif %}
     </div>
-    {% elif session.get('role') == 'band' and session.get('user_id') == aud.band_id %}
-    <div class="apps-section">
-      <h2 style="font-family:'Bebas Neue',cursive;font-size:1.6rem;letter-spacing:1px;margin-bottom:1rem;">Applications (0)</h2>
-      <div style="color:var(--text3);font-size:0.9rem;">No applications yet. Share this audition to attract musicians!</div>
-    </div>
-    {% endif %}
 
-    <!-- Band close button -->
-    {% if session.get('role') == 'band' and session.get('user_id') == aud.band_id and aud.status == 'open' %}
-    <form method="POST" action="{{ url_for('close_audition', aid=aud.id) }}" style="margin-top:2rem;">
+    {% if audition.status == 'open' %}
+    <form method="POST" action="{{ url_for('close_audition', aid=audition.id) }}" style="margin-top:2rem;">
       <button type="submit" class="btn btn-danger btn-sm"
               onclick="return confirm('Close this audition? No more applications will be accepted.')">
         Close Audition
       </button>
     </form>
     {% endif %}
+    {% endif %}
   </div>
 
   <!-- SIDEBAR -->
   <div>
     <div class="apply-card">
-      {% if not session.get('user_id') %}
+      {% if not current_user.is_authenticated %}
         <div class="apply-title">Apply Now</div>
         <p style="font-size:0.88rem;color:var(--text2);margin-bottom:1rem;">You need an account to apply for this audition.</p>
         <a href="{{ url_for('login') }}" class="btn btn-primary" style="width:100%;justify-content:center;">Log In to Apply</a>
         <a href="{{ url_for('register') }}" class="btn btn-ghost" style="width:100%;justify-content:center;margin-top:0.5rem;">Create Account</a>
 
-      {% elif session.get('role') == 'band' %}
+      {% elif current_user.role == 'band' %}
         <div style="font-size:0.88rem;color:var(--text2);">You're logged in as a <strong>band</strong>. Switch to a musician account to apply.</div>
 
-      {% elif aud.status == 'closed' %}
+      {% elif audition.status == 'closed' %}
         <div class="applied-badge">⛔ This audition is closed.</div>
 
       {% elif user_applied %}
@@ -181,7 +199,7 @@
 
       {% else %}
         <div class="apply-title">Apply for this Role</div>
-        <form method="POST" action="{{ url_for('apply', aid=aud.id) }}">
+        <form method="POST" action="{{ url_for('apply', aid=audition.id) }}" enctype="multipart/form-data">
           <div class="form-group">
             <label>Your Message</label>
             <textarea name="message" required placeholder="Tell the band about yourself, your experience, and why you're the right fit..." rows="4"></textarea>
@@ -190,6 +208,11 @@
             <label>Video Performance Link (optional)</label>
             <input type="url" name="video_link" placeholder="https://youtube.com/...">
             <div style="font-size:0.75rem;color:var(--text3);margin-top:0.3rem;">Record yourself playing the piece and paste the link</div>
+          </div>
+          <div class="form-group">
+            <label>Demo File (optional)</label>
+            <input type="file" name="demo_file" accept=".mp3,.wav,.m4a,.mp4,.webm,.ogg,.pdf">
+            <div style="font-size:0.75rem;color:var(--text3);margin-top:0.3rem;">mp3, wav, m4a, mp4, webm, ogg or pdf — up to 50 MB</div>
           </div>
           <button type="submit" class="btn btn-primary" style="width:100%;justify-content:center;padding:0.8rem;">
             Submit Application 🎸
